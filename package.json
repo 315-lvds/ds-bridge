@@ -1,0 +1,18 @@
+{
+  "name": "ds-bridge",
+  "version": "0.3.1",
+  "private": true,
+  "type": "module",
+  "description": "DeepSeek Bridge: export chat.deepseek.com sessions to Markdown/JSON and import selected sessions into DeepSeek Harness (DSH).",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/315-lvds/ds-bridge.git"
+  },
+  "scripts": {
+    "test": "node --test tests/session-groups.test.mjs tests/zip.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

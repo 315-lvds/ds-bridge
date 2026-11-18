@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "深桥导出 (DeepSeek Bridge Export)",
+  "version": "0.3.1",
+  "description": "把 chat.deepseek.com 的会话导出为可读 Markdown 与线性 JSON；按置顶、今天、昨天、7 天内、30 天内、30 天外分组，JSON 可导入 DSH 继续对话。",
+  "permissions": [
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://chat.deepseek.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "深桥导出",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chat.deepseek.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

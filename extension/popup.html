@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="icon" type="image/png" href="icons/icon32.png" />
+  <link rel="stylesheet" href="popup.css" />
+  <title>深桥导出</title>
+</head>
+<body>
+  <header class="brand">
+    <img class="logo" src="icons/icon48.png" width="32" height="32" alt="" />
+    <div class="brand-copy">
+      <h1>深桥导出</h1>
+      <p>DeepSeek Bridge Export</p>
+    </div>
+    <span id="auth" class="badge">检查登录…</span>
+  </header>
+
+  <p class="hint">把 chat.deepseek.com 的会话导出为可读 Markdown 与线性 JSON；JSON 可导入 DSH 继续对话。</p>
+  <button id="open" class="primary" type="button">打开导出工作台</button>
+  <button id="quick" class="ghost" type="button">全选并打开工作台</button>
+
+  <footer>
+    <span id="last" class="last">还没有导出过。</span>
+    <span id="version" class="about">v0.3.1 · 导出格式 dsbridge.export/v2 · 适配深桥导入 0.2.2</span>
+    <span class="privacy">登录令牌只在本扩展内存中使用，不落盘。</span>
+  </footer>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

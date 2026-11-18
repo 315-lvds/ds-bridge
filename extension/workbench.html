@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>深桥导出 · 工作台</title>
+  <link rel="icon" type="image/png" href="icons/icon32.png" />
+  <link rel="stylesheet" href="workbench.css" />
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <img class="brand-logo" src="icons/icon48.png" width="34" height="34" alt="" />
+      <div class="brand-copy">
+        <strong>深桥导出</strong>
+        <span>DeepSeek Bridge Export · 本地工作台</span>
+        <span class="brand-meta">导出格式 dsbridge.export/v2 · 适配深桥导入 0.2.2</span>
+      </div>
+      <span id="auth" class="badge">检查登录…</span>
+      <span id="version-pill" class="version-pill" title="扩展版本">v0.3.1</span>
+    </div>
+    <div class="top-right">
+      <span id="status" class="status" aria-live="polite">准备中…</span>
+      <button id="reload" class="ghost small" type="button">刷新列表</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden" role="status"></div>
+
+  <main class="layout">
+    <section class="list-pane">
+      <div class="list-head">
+        <div class="list-title-row">
+          <div>
+            <h1>会话</h1>
+            <p class="list-sub">按最近更新时间分组 · <span id="list-total">0</span> 个会话</p>
+          </div>
+          <span class="local-pill">本地导出</span>
+        </div>
+
+        <label class="search-box" for="search">
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <circle cx="9" cy="9" r="5.5"></circle>
+            <path d="m13.2 13.2 4 4"></path>
+          </svg>
+          <input id="search" type="search" placeholder="搜索标题或会话 ID…" autocomplete="off" />
+        </label>
+
+        <div id="filters" class="filters" role="group" aria-label="筛选会话">
+          <button type="button" class="chip is-active" data-filter="all" aria-pressed="true">全部 <span class="chip-count" data-count="all">0</span></button>
+          <button type="button" class="chip" data-filter="pinned" aria-pressed="false">置顶 <span class="chip-count" data-count="pinned">0</span></button>
+          <button type="button" class="chip" data-filter="unexported" aria-pressed="false">未导出 <span class="chip-count" data-count="unexported">0</span></button>
+          <button type="button" class="chip" data-filter="changed" aria-pressed="false">有更新 <span class="chip-count" data-count="changed">0</span></button>
+        </div>
+      </div>
+
+      <div class="selection-bar">
+        <span id="sel-count" class="selection-count">已选 0</span>
+        <span id="shown-count" class="selection-shown">显示 0</span>
+        <span class="grow"></span>
+        <button id="sel-visible" class="ghost small" type="button">全选当前</button>
+        <button id="sel-all" class="ghost small" type="button">全选全部</button>
+        <button id="sel-none" class="ghost small" type="button">清空</button>
+      </div>
+
+      <div id="sessions" class="sessions" role="list"></div>
+      <p id="empty" class="empty">登录后会自动加载会话列表。</p>
+    </section>
+
+    <aside class="panel">
+      <div class="panel-head">
+        <h2>导出选项</h2>
+        <p>只导出你勾选的会话</p>
+      </div>
+
+      <label class="row">
+        <span>预设</span>
+        <select id="preset">
+          <option value="readable">可读版（推荐）</option>
+          <option value="clean">纯净版</option>
+          <option value="faithful">保真版</option>
+        </select>
+      </label>
+
+      <fieldset>
+        <legend>Markdown 细节</legend>
+        <label class="row"><span>思考过程</span>
+          <select id="thinking">
+            <option value="fold">折叠</option>
+            <option value="off">不显示</option>
+            <option value="open">展开</option>
+          </select>
+        </label>
+        <label class="row"><span>时间戳</span>
+          <select id="timestamps">
+            <option value="frontmatter">仅文件头</option>
+            <option value="none">不显示</option>
+            <option value="each">每条消息</option>
+          </select>
+        </label>
+        <label class="row check"><input id="comments" type="checkbox" checked /><span>写入 HTML 注释（消息 id / parent）</span></label>
+        <label class="row check"><input id="frontmatter" type="checkbox" checked /><span>写入 YAML front matter</span></label>
+        <label class="row check"><input id="attachments" type="checkbox" checked /><span>保留附件占位</span></label>
+        <label class="row"><span>分支</span>
+          <select id="branches">
+            <option value="active">仅当前链</option>
+            <option value="all">全部分支（Markdown 全树）</option>
+            <option value="custom">自定义链…</option>
+          </select>
+        </label>
+        <p id="branch-hint" class="tiny muted">自定义链会在开始导出时打开拓扑选择器；全部分支可同时导出 Markdown 全树与逐链 JSON，超过 30 条链会二次确认。</p>
+        <label class="row check"><input id="tips" type="checkbox" /><span>保留搜索/引用提示行</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>打包</legend>
+        <label class="row check"><input id="inc-md" type="checkbox" checked /><span>conversations/*.md</span></label>
+        <label class="row check"><input id="inc-json" type="checkbox" checked /><span>JSON（线性，供 DSH 导入）</span></label>
+        <p id="json-hint" class="tiny muted">当前链/自定义链生成一个 export.json（每条链一条线性会话）；全部分支每条链生成一个 json/*.json。</p>
+        <label class="row check"><input id="inc-new" type="checkbox" /><span>跳过自上次导出后未更新的会话</span></label>
+        <label class="row"><span>并发</span>
+          <select id="conc">
+            <option value="2">2（保守）</option>
+            <option value="3" selected>3（推荐）</option>
+            <option value="5">5（较快）</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <button id="export" class="primary" type="button">开始导出</button>
+      <div class="progress"><div id="bar"></div></div>
+      <p id="progress-text" class="muted small">未开始</p>
+      <pre id="log" class="log"></pre>
+
+
+    </aside>
+  </main>
+
+  <footer class="security-note" role="note" aria-label="隐私与安全提示">
+    <span class="security-title">隐私与安全</span>
+    <p><strong>登录令牌只在本扩展运行内存中使用</strong>，不写入磁盘、不进入导出包。导出文件含完整聊天记录，请仅在可信设备保存，不要上传到公开位置或第三方服务。</p>
+  </footer>
+
+  <script type="module" src="workbench.js"></script>
+
+  <dialog id="branch-dialog" class="branch-dialog">
+    <div class="branch-head">
+      <h3>选择分支链</h3>
+      <p id="branch-summary" class="muted small"></p>
+    </div>
+    <div id="branch-list" class="branch-list"></div>
+    <div class="branch-actions">
+      <button id="branch-current" type="button" class="ghost small">全部用当前链</button>
+      <span class="spacer"></span>
+      <button id="branch-cancel" type="button" class="ghost">取消</button>
+      <button id="branch-ok" type="button" class="primary small">确定</button>
+    </div>
+  </dialog>
+</body>
+</html>
