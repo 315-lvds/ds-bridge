@@ -7,6 +7,10 @@
 <p align="center">把 DeepSeek 网页会话导出为可读 Markdown / 线性 JSON，并把选中的会话导入 DSH 继续对话。</p>
 
 <p align="center">
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white" alt="powered by dsh" width="121" height="20" /></a>
+</p>
+
+<p align="center">
   <code>Browser Extension 0.3.1</code> · <code>DSH Plugin 0.2.2</code> · <code>MIT</code>
 </p>
 
@@ -212,6 +216,14 @@ ds-bridge/
 - [DSH session.v4 背景](docs/DSH_SCHEMA.md)
 - [官方导出 v3 格式](docs/OFFICIAL_EXPORT_FORMAT.md)
 - [安全与隐私](docs/SECURITY.md)
+
+## 开发说明
+
+本项目在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中开发，并使用 **DeepSeek V4 Flash** 辅助编写代码、测试和文档。需求、交互设计、安全边界、验收与发布由维护者负责。二者是开发工具，不是本项目的运行时依赖：浏览器扩展只与 chat.deepseek.com 通信，DSH 插件只与本机 DSH 路由通信；扩展和插件本身不调用第三方 AI 服务。
+
+AI 参与生成，但不替代验收：导出/导入逻辑都有单元测试或本地烟测，已知限制与未验证范围如实列在上文，欢迎按 [CONTRIBUTING.md](CONTRIBUTING.md) 提交可复现的 issue。
+
+**English:** This project is developed in [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) with **DeepSeek V4 Flash** assisting code, tests, and documentation. The maintainer owns requirements, design, security boundaries, review, and releases. These are development tools, not runtime dependencies; the extension talks only to chat.deepseek.com, and the DSH plugin only to the local DSH route.
 
 ## English summary
 

@@ -2,6 +2,11 @@
 
 版本号分别对应两个独立组件：浏览器扩展从 `0.3.0` 开始（当前 `0.3.1`），DSH 插件从 `0.2.2` 开始。
 
+## Docs — 2026-11-18
+
+- README 标题下加入官方 `powered by dsh` 徽章；在英文简介前补充 DeepSeek Harness + DeepSeek V4 Flash 的 AI 辅助开发说明。
+- 扩展与 DSH 插件 README 同步补充开发说明。
+
 ## DSH plugin 0.2.2 — 2026-11-18
 
 - 修复 DSH 0.2.2-rc.5 插件详情页的「插件声明的详细介绍文件无效」：不再把长描述放在 `meta.detail`，改用 README 回退。

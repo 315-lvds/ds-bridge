@@ -66,6 +66,10 @@ DSH 0.2.2-rc.5 把 locale 里的 `meta.detail` 解释为**插件包内的 Markdo
 
 解析、筛选与 v3 zip 组装都在浏览器内存完成；只有选中会话的 v3 zip 会 POST 到本机同源的 DSH 路由，不访问外部网络，不读取登录令牌，也不把聊天内容写入日志或 `chrome.storage`。
 
+## 开发说明
+
+本插件在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中开发，并使用 **DeepSeek V4 Flash** 辅助编写代码、测试与文档；需求、设计、安全边界、验收与发布由维护者负责。二者是开发工具，不是本插件的运行时依赖。
+
 ## 更新记录
 
 ### 0.2.2 — 2026-11-18
