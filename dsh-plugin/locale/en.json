@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "DeepSeek Bridge Import",
-    "description": "Import selected DeepSeek Bridge JSON or official export ZIPs as native DSH Sessions. Adapted to DSH 0.2.2-rc.5; requires the official chat importer and writes up to 50 sessions per batch, with stop and resume."
+    "description": "Import selected DeepSeek Bridge JSON or official export ZIPs as native DSH Sessions. Adapted to DSH 0.2.2-rc.5; requires the official chat importer and writes up to 50 sessions per batch, with stop and resume; compatible with DeepSeek Bridge Export 0.3.1 and later."
   }
 }

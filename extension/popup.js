@@ -46,7 +46,7 @@ openBtn.addEventListener('click', () => openWorkbench(''));
 quickBtn.addEventListener('click', () => openWorkbench('autostart=all'));
 
 if (versionEl) {
-  versionEl.textContent = 'v' + chrome.runtime.getManifest().version + ' · 导出格式 dsbridge.export/v2 · 适配深桥导入 0.2.2';
+  versionEl.textContent = 'v' + chrome.runtime.getManifest().version + ' · 导出格式 dsbridge.export/v2 · 兼容深桥导入 0.2.2+';
 }
 
 checkAuth();

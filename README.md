@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <code>Browser Extension 0.3.1</code> · <code>DSH Plugin 0.2.4</code> · <code>Apache-2.0</code>
+  <code>Browser Extension 0.3.2</code> · <code>DSH Plugin 0.2.4</code> · <code>Apache-2.0</code>
 </p>
 
 > 本项目不是 DeepSeek 官方产品。它使用 chat.deepseek.com 的 Web 内部接口和 DSH 的实验性导入器，接口变化可能导致功能失效。
@@ -31,7 +31,7 @@ DeepSeek 官方已经支持导出全部数据，DSH 也自带实验性导入器�
 | **深桥导出**（Chromium 扩展） | 按会话勾选，导出可读 Markdown、线性 JSON 或 zip；支持当前链/全部分支/自定义链 |
 | **深桥导入**（DSH 插件） | 读取深桥 JSON/zip 或官方 `deepseek_data-*.zip`，筛选、勾选、选工作区，分批写入 DSH（每批最多 50 个），可随时停止 |
 
-两者不直接通信；导出文件就是契约。
+两者不直接通信；导出文件就是契约。浏览器扩展 0.3.2 兼容 DSH 插件 0.2.2 及后续版本，DSH 插件 0.2.4 兼容浏览器扩展 0.3.1 及后续版本。
 
 ## 功能
 

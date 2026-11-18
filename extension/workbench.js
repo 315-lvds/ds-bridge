@@ -665,7 +665,7 @@ async function exportSelected() {
   };
   const manifest = {
     schema: 'dsbridge.manifest/v2',
-    generator: 'dsbridge-extension/0.3.1',
+    generator: 'dsbridge-extension/0.3.2',
     exported_at: exportedAt,
     source: { site: 'https://chat.deepseek.com', api: 'https://chat.deepseek.com/api/v0' },
     options: Object.assign({}, opts, { json_mode: jsonMode, json: jsonOpts }),

@@ -4,8 +4,8 @@
 
 ## 版本与适配
 
-- 当前扩展版本：`0.3.1`（`manifest.json`）。
-- 导出格式：`dsbridge.export/v2`，配套「深桥导入」DSH 插件 `0.2.2`。
+- 当前扩展版本：`0.3.2`（`manifest.json`）。
+- 导出格式：`dsbridge.export/v2`；兼容「深桥导入」DSH 插件 `0.2.2` 及后续版本（本次配套 `0.2.4`）。
 - 浏览器扩展与 DSH 插件独立：扩展不依赖 DSH 运行，只负责生成 Markdown/JSON；DSH 插件读取 JSON 后转换成原生会话。
 - 版本与适配信息也显示在 popup 底部和工作台顶部。
 

@@ -92,7 +92,7 @@ Markdown 是给人读的；需要机器读取时使用 JSON。
 {
   "schema": "dsbridge.export/v2",
   "exported_at": "2026-11-18T05:00:00.000Z",
-  "generator": "dsbridge-extension/0.3.1",
+  "generator": "dsbridge-extension/0.3.2",
   "source": { "site": "https://chat.deepseek.com" },
   "branch_mode": "active",
   "options": { "include_reasoning": true, "include_attachments": true, "preset": "readable" },
