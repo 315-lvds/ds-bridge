@@ -1,8 +1,8 @@
 {
   "name": "dsbridge-import",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "private": true,
-  "description": "Import selected dsbridge JSON or official deepseek_data zips into DSH as native Sessions, without the 1000-session limit",
+  "description": "Import selected dsbridge JSON or official deepseek_data zips into DSH as native Sessions, up to 50 sessions per batch, with stop and resume",
   "type": "module",
   "main": "lib/index.js",
   "icon": "./icon.svg",

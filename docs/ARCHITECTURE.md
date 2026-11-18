@@ -175,17 +175,17 @@ chat_sessions/<id>.json        {id,title,current_message_id,inserted_at,messages
 - 深桥消息：`reasoning` → `THINK`，`text` → `REQUEST` / `RESPONSE`，附件 → `FILE`（`export_path: null`）；
 - 官方消息：保留 `fragments` 的类型与内容，`FILE.export_path` 置 null（避免引用不存在的文件）；
 - 标题按 UTF-8 截断到 80 字节，满足官方限制；
-- 生成器标识 `dsbridge-dsh-plugin/0.2.2`。
+- 生成器标识 `dsbridge-dsh-plugin/0.2.4`。
 
 ### 3.5 分批上传
 
-官方导入器单次最多 1000 个会话（`maxSessions=1000`），且请求体、条目有大小限制。插件：
+官方导入器单次最多 1000 个会话（`maxSessions=1000`），且 NDJSON 的 `outcome` 只在请求结束时返回 `sessionIds`；中途 abort 无法可靠知道已写入哪些会话。插件：
 
-- 每批最多 **1000 个会话**；
-- 每批源数据估算不超过 **320 MiB**（低于服务端 512 MiB 请求体上限）；
-- 顺序构建并 POST 到 `api/deepseek-chat-import/archive?workspaceId=…`；
-- 解析 NDJSON 的 `progress` / `outcome`；
-- 首批失败直接报错；后续批次失败保留已完成批次并在结果中提示；
+- 每批最多 **50 个会话**，且这批源数据估算不超过 **64 MiB**（远低于服务端 512 MiB 请求体上限）；
+- 顺序 POST 到 `api/deepseek-chat-import/archive?workspaceId=…`，一批一个 archive；
+- 解析 NDJSON 的 `progress` / `outcome`；成功后汇总该批的 `sessionIds`；
+- 停止在当前批次处理完后生效，最多等待 50 个会话；
+- 撤销只归档已经拿到 ID 的会话；
 - 单会话构建失败记录到失败列表，不静默跳过。
 
 导入成功后刷新 DSH 会话列表。
@@ -196,7 +196,7 @@ chat_sessions/<id>.json        {id,title,current_message_id,inserted_at,messages
 - 搜索标题/ID/文件名、最少用户轮次、更新时间范围、是否含思考、排序；
 - 选择超过 50 个时，用 DSH 原生 Modal 二次确认；
 - 列表每次渲染 250 行，可“显示更多”；
-- 结果面板显示成功数、跳过数、失败数、分批数。
+- 结果面板显示成功数、跳过数、失败数、已处理会话数。
 
 ## 4. 为什么不自研 v4 写入
 
@@ -213,7 +213,7 @@ DSH `session.v4.jsonl.zstd` 是 DSH 内部持久化格式，包含：
 
 - 必须启用官方实验性导入器；
 - 官方路由变更时插件需要跟进；
-- 不支持跨批次去重（重复导入会生成新会话）。
+- 不支持跨会话去重（重复导入会生成新会话）。
 
 ## 5. 安全边界
 
@@ -230,7 +230,7 @@ DSH `session.v4.jsonl.zstd` 是 DSH 内部持久化格式，包含：
 - 非官方 Web API，可能随 DeepSeek 前端发版变化；
 - 附件字节不导出：扩展只保留附件占位/元数据，官方导出中的非图片附件也只有元数据；
 - 官方 zip 只导入 `current_message_id` 当前链，历史分支不会进入 DSH；需要分支时用扩展的全部分支 JSON；
-- 超过 1000 个会话依赖多次上传；中间批次失败会保留已完成部分；
+- 超过 50 个会话依赖多次上传；中间批次失败会保留已完成部分；
 - 不支持 ZIP64、加密 zip、除 store/deflate 外的压缩方式；
 - DSH 插件依赖官方导入器，禁用时返回 404 并提示启用；
 - 重复导入同一文件会产生重复会话（当前不做跨批次 source id 去重）。

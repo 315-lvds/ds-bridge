@@ -5,8 +5,8 @@
  * window.__ModuleLoader__. It accepts both dsbridge v1/v2 linear JSON and the
  * official DeepSeek export zip (manifest.json + chat_session_index.json +
  * chat_sessions/<id>.json). Conversations are selected locally, converted to
- * the official v3 archive format, and uploaded in batches of at most 1000
- * sessions through the official owner import route.
+ * the official v3 archive format, and uploaded in bounded chunks (up to 50
+ * sessions or 64 MiB) so an import can stop at a confirmed chunk boundary.
  */
 window.__ModuleLoader__.load({
   id: 'dsbridge-import',
@@ -22,17 +22,17 @@ window.__ModuleLoader__.load({
     var SegmentedControl = primitives.SegmentedControl
     var h = React.createElement
     var NS = 'dsbridgeImport'
-    var MAX_BATCH_SESSIONS = 1000
-    var MAX_BATCH_BYTES = 320 * 1024 * 1024
     var SCAN_CONCURRENCY = 4
     var RENDER_STEP = 250
     var CONFIRM_SELECTION = 50
+    var CHUNK_SESSIONS = 50
+    var CHUNK_BYTES = 64 * 1024 * 1024
 
     var zh = {
       'action.label': '导入 DeepSeek 会话',
       'action.short': '导入',
       'dialog.title': '导入 DeepSeek 会话',
-      'dialog.description': '支持深桥导出的 JSON / ZIP，也支持官方 deepseek_data-*.zip；筛选后写入工作区，超过 1000 个会自动分批。',
+      'dialog.description': '支持深桥导出的 JSON / ZIP，也支持官方 deepseek_data-*.zip；筛选后按每批最多 50 个会话写入工作区，可随时停止。',
       'dialog.drop': '拖入 JSON / ZIP，或选择文件',
       'dialog.formats': '深桥 export.json、单链 JSON、导出 ZIP，或官方 deepseek_data-*.zip',
       'dialog.chooseFile': '选择文件',
@@ -48,7 +48,7 @@ window.__ModuleLoader__.load({
       'dialog.visible': '当前结果 {count} 个',
       'dialog.files': '{files} 个文件 · {entries} 个会话',
       'dialog.bad': '{count} 个会话无法解析，已隐藏',
-      'dialog.batches': '已选 {count} 个会话，将分 {batches} 批导入。',
+      'dialog.unitHint': '已选 {count} 个会话，将按每批最多 50 个写入；停止在当前批次完成后生效。',
       'filter.search': '搜索标题、ID 或文件名',
       'filter.turns': '排除短会话（按用户轮次）',
       'filter.recent': '更新时间',
@@ -78,35 +78,63 @@ window.__ModuleLoader__.load({
       'badge.dsbridge': '深桥',
       'progress.parsing': '正在读取文件...',
       'progress.scanning': '正在解析官方导出 {done}/{total}...',
-      'progress.building': '正在组装第 {batch}/{batches} 批...',
-      'progress.uploading': '第 {batch}/{batches} 批上传中 {percent}%',
-      'progress.reading': '服务器读取中...',
-      'progress.importing': '第 {batch}/{batches} 批写入 {done}/{total}',
+      'progress.building': '正在准备第 {current}/{total} 批...',
+      'progress.uploading': '第 {current}/{total} 批上传中 {percent}%',
+      'progress.reading': '第 {current}/{total} 批：服务器读取中...',
+      'progress.importing': '第 {current}/{total} 批写入中...',
       'error.prefix': '导入失败：{message}',
       'error.noRoute': '找不到官方 DeepSeek 会话导入器的上传接口。请先在 Plugins > 更多 > 实验性插件中启用“DeepSeek 会话导入”，再重试。',
       'error.http': '服务器返回 HTTP {status}：{message}',
       'error.transport': '上传连接中断：{message}',
+      'error.busy': '另一个导入正在进行，请稍后重试。',
       'error.invalid': '服务器返回了无法识别的进度数据。',
       'error.noWorkspace': '请选择一个工作区。',
       'result.ok': '已导入 {count} 个会话到「{workspace}」。',
-      'result.batches': '共分 {count} 批完成。',
+      'result.processed': '共处理 {count} 个会话。',
       'result.skipped': '其中 {count} 个被跳过。',
       'result.omitted': '另有 {count} 个因导入器上限未写入。',
       'result.failed': '{count} 个会话没有可导入的消息，已跳过。',
       'result.partial': '中途停止，已完成的批次保留。',
-      'dialog.confirmLarge': '已选择 {count} 个会话，将分 {batches} 批写入工作区。',
+      'dialog.confirmLarge': '已选择 {count} 个会话，将按每批最多 50 个写入工作区；可随时停止。',
       'dialog.confirmTitle': '确认批量导入',
       'dialog.confirmSelectTitle': '选择较多会话',
       'dialog.confirmImport': '继续导入',
       'dialog.confirmSelect': '继续选择',
       'dialog.back': '返回选择',
+      'dialog.stop': '停止导入',
+      'dialog.resume': '继续导入',
+      'stop.title': '停止导入',
+      'stop.description': '停止会在当前批次（最多 50 个会话）完成后生效。请选择已导入会话的处理方式。',
+      'stop.pause': '暂停导入',
+      'stop.pauseHint': '停止后续批次并保留进度；可在这个窗口继续导入剩余会话。',
+      'stop.keep': '保留已导入会话',
+      'stop.keepHint': '停止后续批次，已经写入工作区的会话继续保留。',
+      'stop.undo': '撤销本次已导入会话',
+      'stop.undoHint': '完成当前批次后，把本次已确认写入的 {count} 个会话归档。归档可在工作区中恢复，不会改动原始导出文件。',
+      'stop.dismiss': '暂停并返回',
+      'stop.dismissHint': '关闭这个窗口会按“暂停导入”处理。',
+      'stop.pending.pause': '已请求暂停：当前批次完成后停止。',
+      'stop.pending.keep': '已请求停止：当前批次完成后保留已导入会话。',
+      'stop.pending.undo': '已请求撤销：当前批次完成后归档本次已导入会话。',
+      'stop.stopping': '正在停止...',
+      'paused.title': '导入已暂停',
+      'paused.text': '已完成 {done}/{total} 个会话，已导入 {count} 个会话。',
+      'paused.hint': '继续导入从下一个未处理批次开始，不会重复已完成的批次；关闭窗口会保留已导入的会话。',
+      'paused.close': '保留并关闭',
+      'undoing.text': '正在撤销本次导入的 {count} 个会话...',
+      'result.stopped': '已停止导入，已完成的批次保留。',
+      'result.stoppedNone': '已停止导入，没有会话写入工作区。',
+      'result.undone': '已撤销本次导入，共归档 {count} 个会话。',
+      'result.undoFailedOne': '归档失败',
+      'result.undoFailures': '{count} 个会话未能归档：{message}',
+      'result.undoHint': '已归档的会话可以在工作区的归档中恢复；撤销按会话逐个确认，失败项会列在下方。',
     }
 
     var en = {
       'action.label': 'Import DeepSeek sessions',
       'action.short': 'Import',
       'dialog.title': 'Import DeepSeek sessions',
-      'dialog.description': 'Choose dsbridge JSON / ZIP files or an official deepseek_data-*.zip. Filter locally, then write into a Workspace; more than 1000 sessions are uploaded in batches.',
+      'dialog.description': 'Choose dsbridge JSON / ZIP files or an official deepseek_data-*.zip. Filter locally, then write sessions into a Workspace in batches of up to 50; you can stop at any time.',
       'dialog.drop': 'Drop JSON / ZIP here, or choose files',
       'dialog.formats': 'dsbridge export.json, single-chain JSON, an export ZIP, or an official deepseek_data-*.zip',
       'dialog.chooseFile': 'Choose files',
@@ -122,7 +150,7 @@ window.__ModuleLoader__.load({
       'dialog.visible': '{count} in the current result',
       'dialog.files': '{files} files · {entries} conversations',
       'dialog.bad': '{count} conversations could not be parsed and are hidden',
-      'dialog.batches': '{count} selected; importing in {batches} batches.',
+      'dialog.unitHint': '{count} selected; up to 50 sessions per batch. A stop takes effect after the current batch.',
       'filter.search': 'Search title, id, or file name',
       'filter.turns': 'Exclude short chats (user turns)',
       'filter.recent': 'Updated',
@@ -152,28 +180,56 @@ window.__ModuleLoader__.load({
       'badge.dsbridge': 'dsbridge',
       'progress.parsing': 'Reading files...',
       'progress.scanning': 'Scanning official export {done}/{total}...',
-      'progress.building': 'Building batch {batch}/{batches}...',
-      'progress.uploading': 'Uploading batch {batch}/{batches} ({percent}%)',
-      'progress.reading': 'The server is reading...',
-      'progress.importing': 'Writing batch {batch}/{batches}: {done}/{total}',
+      'progress.building': 'Preparing batch {current}/{total}...',
+      'progress.uploading': 'Uploading batch {current}/{total} ({percent}%)',
+      'progress.reading': 'Batch {current}/{total}: the server is reading...',
+      'progress.importing': 'Writing batch {current}/{total}...',
       'error.prefix': 'Import failed: {message}',
       'error.noRoute': 'The DeepSeek chat importer route was not found. Enable the experimental "DeepSeek chat import" plugin under Plugins > More first, then retry.',
       'error.http': 'The server answered HTTP {status}: {message}',
       'error.transport': 'The upload connection failed: {message}',
+      'error.busy': 'Another import is running. Try again in a moment.',
       'error.invalid': 'The server sent unrecognized progress data.',
       'error.noWorkspace': 'Choose a Workspace first.',
       'result.ok': 'Imported {count} sessions into "{workspace}".',
-      'result.batches': 'Completed in {count} batches.',
+      'result.processed': 'Processed {count} sessions.',
       'result.skipped': '{count} were skipped.',
       'result.omitted': '{count} were omitted by the importer limit.',
       'result.failed': '{count} conversations had no importable messages and were skipped.',
       'result.partial': 'Stopped early; completed batches were kept.',
-      'dialog.confirmLarge': 'You selected {count} conversations; they will be written in {batches} batches.',
+      'dialog.confirmLarge': 'You selected {count} conversations; they will be written in batches of up to 50, and you can stop at any time.',
       'dialog.confirmTitle': 'Confirm bulk import',
       'dialog.confirmSelectTitle': 'Many conversations selected',
       'dialog.confirmImport': 'Import anyway',
       'dialog.confirmSelect': 'Select anyway',
       'dialog.back': 'Back',
+      'dialog.stop': 'Stop import',
+      'dialog.resume': 'Resume import',
+      'stop.title': 'Stop import',
+      'stop.description': 'Stopping takes effect after the current batch (up to 50 sessions) finishes. Choose what to do with sessions already imported.',
+      'stop.pause': 'Pause import',
+      'stop.pauseHint': 'Stop the remaining batches and keep progress; resume them from this window.',
+      'stop.keep': 'Keep imported sessions',
+      'stop.keepHint': 'Stop the remaining batches and keep sessions already written to the Workspace.',
+      'stop.undo': 'Undo imported sessions',
+      'stop.undoHint': 'After the current batch, archive the {count} sessions this import confirmed as written. Archived sessions can be restored; the source export files are unchanged.',
+      'stop.dismiss': 'Pause and go back',
+      'stop.dismissHint': 'Closing this window pauses the import.',
+      'stop.pending.pause': 'Pause requested: stopping after the current batch.',
+      'stop.pending.keep': 'Stop requested: keeping imported sessions after the current batch.',
+      'stop.pending.undo': 'Undo requested: archiving this import after the current batch.',
+      'stop.stopping': 'Stopping...',
+      'paused.title': 'Import paused',
+      'paused.text': 'Completed {done}/{total} sessions; {count} sessions imported.',
+      'paused.hint': 'Resuming starts at the next unprocessed batch; completed batches are not repeated. Closing this window keeps the imported sessions.',
+      'paused.close': 'Keep and close',
+      'undoing.text': 'Archiving the {count} sessions imported by this run...',
+      'result.stopped': 'Import stopped; completed batches were kept.',
+      'result.stoppedNone': 'Import stopped; no sessions were written.',
+      'result.undone': 'Undid this import and archived {count} sessions.',
+      'result.undoFailedOne': 'Archive failed',
+      'result.undoFailures': '{count} sessions could not be archived: {message}',
+      'result.undoHint': 'Archived sessions can be restored from the Workspace archive. Undo is confirmed session by session; failures are listed below.',
     }
 
     var textEncoder = new TextEncoder()
@@ -789,7 +845,7 @@ window.__ModuleLoader__.load({
 
     async function buildV3(selected, now) {
       var exportTime = (now || new Date()).toISOString()
-      var manifest = { export_format_version: 3, exported_at: exportTime, generator: 'dsbridge-dsh-plugin/0.2.2' }
+      var manifest = { export_format_version: 3, exported_at: exportTime, generator: 'dsbridge-dsh-plugin/0.2.4' }
       var index = []
       var files = []
       var failed = []
@@ -821,33 +877,29 @@ window.__ModuleLoader__.load({
           }),
         })
       }
-      if (files.length === 0) throw new Error('no messages to import')
       var output = [
         { name: 'manifest.json', data: JSON.stringify(manifest) },
         { name: 'chat_session_index.json', data: JSON.stringify(index) },
       ].concat(files)
-      return { files: output, index: index, zip: buildZip(output, now || new Date()), failed: failed }
+      return { files: output, index: index, zip: files.length > 0 ? buildZip(output, now || new Date()) : null, failed: failed }
     }
 
-    function planBatches(selected) {
-      var batches = []
+    function planUnits(selected) {
+      var units = []
       var current = []
       var bytes = 0
-      function flush() {
-        if (current.length > 0) batches.push(current)
-        current = []
-        bytes = 0
-      }
       for (var i = 0; i < selected.length; i++) {
-        var entry = selected[i]
-        var size = Number(entry.source_size)
-        if (!Number.isFinite(size) || size < 0) size = 0
-        if (current.length >= MAX_BATCH_SESSIONS || (current.length > 0 && bytes + size > MAX_BATCH_BYTES)) flush()
-        current.push(entry)
+        var size = Number(selected[i].source_size) || 0
+        if (current.length > 0 && (current.length >= CHUNK_SESSIONS || bytes + size > CHUNK_BYTES)) {
+          units.push(current)
+          current = []
+          bytes = 0
+        }
+        current.push(selected[i])
         bytes += size
       }
-      flush()
-      return batches
+      if (current.length > 0) units.push(current)
+      return units
     }
 
     function uploadArchive(blob, workspaceId, onProgress) {
@@ -966,6 +1018,17 @@ window.__ModuleLoader__.load({
       '.dsbi-result{display:flex;flex-direction:column;gap:8px;font-size:13px;line-height:20px}',
       '.dsbi-confirm-modal{width:min(460px,100%)}',
       '.dsbi-confirm-text{font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary,inherit);white-space:pre-wrap}',
+      '.dsbi-stop-options{display:flex;flex-direction:column;gap:10px}',
+      '.dsbi-stop-option{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:10px 12px;border:1px solid var(--dsw-alias-border-secondary,rgba(127,127,127,.3));border-radius:10px;background:transparent;color:inherit;text-align:left;font:inherit;cursor:pointer}',
+      '.dsbi-stop-option:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(127,127,127,.08))}',
+      '.dsbi-stop-option:disabled{opacity:.5;cursor:default}',
+      '.dsbi-stop-option.is-primary{border-color:var(--dsw-alias-state-accent-primary,#4d6bfe)}',
+      '.dsbi-stop-option.is-danger{border-color:var(--dsw-alias-state-error-primary,#c33)}',
+      '.dsbi-stop-option-title{font-size:13px;line-height:19px;font-weight:600}',
+      '.dsbi-stop-option.is-danger .dsbi-stop-option-title{color:var(--dsw-alias-state-error-primary,#c33)}',
+      '.dsbi-stop-option-hint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,inherit)}',
+      '.dsbi-stop-note{margin-top:10px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,inherit)}',
+      '.dsbi-stop-pending{padding:7px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,rgba(127,127,127,.08));font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,inherit)}',
       '@media(max-width:640px){.dsbi-modal{width:100%}.dsbi-filter-grid{grid-template-columns:1fr}.dsbi-selected{margin-left:0}.dsbi-path{flex-basis:100%}}',
     ].join('\n')
 
@@ -1031,10 +1094,16 @@ window.__ModuleLoader__.load({
       var [listLimit, setListLimit] = React.useState(RENDER_STEP)
       var [bulkAck, setBulkAck] = React.useState(0)
       var [bulkPrompt, setBulkPrompt] = React.useState(null)
+      var [stopOpen, setStopOpen] = React.useState(false)
       var inputRef = React.useRef(null)
       var workspaceAnchor = React.useRef(null)
+      var jobRef = React.useRef(null)
       var activeWorkspace = workspaceList.find(function (workspace) { return workspace.workspaceId === workspaceId }) || workspaceList[0]
-      var running = phase.kind === 'parsing' || phase.kind === 'scanning' || phase.kind === 'building' || phase.kind === 'uploading' || phase.kind === 'reading' || phase.kind === 'importing'
+      var importActive = phase.kind === 'building' || phase.kind === 'uploading' || phase.kind === 'reading' || phase.kind === 'importing'
+      var running = phase.kind === 'parsing' || phase.kind === 'scanning' || importActive || phase.kind === 'stopped' || phase.kind === 'undoing'
+      var activeJob = jobRef.current
+      var stopPending = !!(activeJob && activeJob.stopRequested)
+      var stopMode = activeJob ? activeJob.stopMode : null
 
       var visible = React.useMemo(function () {
         var q = query.trim().toLowerCase()
@@ -1090,7 +1159,7 @@ window.__ModuleLoader__.load({
         for (var i = 0; i < chosen.length; i++) total += chosen[i].message_count
         return total
       }, [chosen])
-      var batches = React.useMemo(function () { return planBatches(chosen) }, [chosen])
+      var units = React.useMemo(function () { return planUnits(chosen) }, [chosen])
 
       async function ingest(fileList) {
         if (!fileList || fileList.length === 0) return
@@ -1169,10 +1238,19 @@ window.__ModuleLoader__.load({
           return
         }
         setBulkAck(chosen.length)
-        void runImport(planBatches(chosen))
+        startImport(planUnits(chosen))
+      }
+
+      function busyAnswer(answer) {
+        return !!(answer && answer.ok === false && answer.outcome && answer.outcome.error && answer.outcome.error.reason === 'busy')
+      }
+
+      function wait(ms) {
+        return new Promise(function (resolve) { setTimeout(resolve, ms) })
       }
 
       function uploadError(answer) {
+        if (busyAnswer(answer)) return t('error.busy')
         if (answer.reason === 'no-route') return t('error.noRoute')
         if (answer.reason === 'http') return t('error.http', { status: String(answer.status), message: answer.message })
         if (answer.reason === 'invalid') return t('error.invalid')
@@ -1183,72 +1261,249 @@ window.__ModuleLoader__.load({
       function submit() {
         if (chosen.length === 0) return
         if (!activeWorkspace) { setError(t('error.noWorkspace')); return }
-        var planned = planBatches(chosen)
-        if (planned.length === 0) return
+        var units = planUnits(chosen)
+        if (units.length === 0) return
         if (chosen.length > CONFIRM_SELECTION && bulkAck !== chosen.length) {
-          requestBulk('submit', t('dialog.confirmLarge', { count: String(chosen.length), batches: String(planned.length) }), null)
+          requestBulk('submit', t('dialog.confirmLarge', { count: String(chosen.length) }), null)
           return
         }
-        void runImport(planned)
+        startImport(units)
       }
 
-      async function runImport(planned) {
+      function refreshSessions() {
+        if (!props.refreshSessions) return Promise.resolve()
+        return Promise.resolve(props.refreshSessions()).catch(function () { /* session refresh is best effort */ })
+      }
+
+      function resultOf(job, extra) {
+        var result = {
+          sessionIds: job.aggregate.sessionIds.slice(),
+          skipped: job.aggregate.skipped.slice(),
+          omittedByLimit: job.aggregate.omittedByLimit,
+          failed: job.aggregate.failed.slice(),
+          completed: job.completedSessions,
+          planned: job.plannedSessions,
+          workspace: job.workspaceName,
+          partial: job.failure !== null,
+          stopped: false,
+          undone: 0,
+          undoAttempted: false,
+          archiveFailures: [],
+        }
+        if (extra) {
+          for (var key in extra) {
+            if (Object.prototype.hasOwnProperty.call(extra, key)) result[key] = extra[key]
+          }
+        }
+        return result
+      }
+
+      function startImport(units) {
+        if (!activeWorkspace || units.length === 0) return
+        var job = {
+          units: units,
+          workspaceId: activeWorkspace.workspaceId,
+          workspaceName: activeWorkspace.title || activeWorkspace.path || '',
+          aggregate: { sessionIds: [], skipped: [], omittedByLimit: 0, failed: [] },
+          completedSessions: 0,
+          plannedSessions: units.reduce(function (total, unit) { return total + unit.length }, 0),
+          nextUnit: 0,
+          failure: null,
+          stopRequested: false,
+          stopMode: null,
+          awaiting: false,
+          settling: false,
+          finished: false,
+          running: false,
+        }
+        jobRef.current = job
+        void runJob(job)
+      }
+
+      async function runJob(job) {
+        if (!job || job.finished || job.running) return
+        job.running = true
+        job.failure = null
+        job.stopRequested = false
+        job.stopMode = null
+        job.awaiting = false
+        job.settling = false
+        setStopOpen(false)
         setError(null)
-        var aggregate = { sessionIds: [], skipped: [], omittedByLimit: 0, failed: [] }
-        var completed = 0
         var failure = null
-        for (var b = 0; b < planned.length; b++) {
-          setPhase({ kind: 'building', batch: b + 1, batches: planned.length })
+        for (var u = job.nextUnit; u < job.units.length; u++) {
+          if (job.stopRequested) break
+          setPhase({ kind: 'building', current: u + 1, total: job.units.length })
           try {
-            var built = await buildV3(planned[b], new Date())
+            var built = await buildV3(job.units[u], new Date())
+            if (job.stopRequested) break
+            job.aggregate.failed = job.aggregate.failed.concat(built.failed || [])
+            if (!built.zip || built.index.length === 0) {
+              job.nextUnit = u + 1
+              job.completedSessions += job.units[u].length
+              continue
+            }
             var blob = new Blob([built.zip], { type: 'application/zip' })
-            setPhase({ kind: 'uploading', fraction: 0, batch: b + 1, batches: planned.length })
-            var answer = await uploadArchive(blob, activeWorkspace.workspaceId, function (progress) {
-              if (progress.phase === 'uploading') setPhase({ kind: 'uploading', fraction: progress.fraction, batch: b + 1, batches: planned.length })
-              else if (progress.phase === 'reading') setPhase({ kind: 'reading', batch: b + 1, batches: planned.length })
-              else if (progress.phase === 'importing') setPhase({ kind: 'importing', done: progress.done, total: progress.total, batch: b + 1, batches: planned.length })
-            })
+            setPhase({ kind: 'uploading', fraction: 0, current: u + 1, total: job.units.length })
+            var uploadProgress = function (progress) {
+              if (progress.phase === 'uploading') setPhase({ kind: 'uploading', fraction: progress.fraction, current: u + 1, total: job.units.length })
+              else if (progress.phase === 'reading') setPhase({ kind: 'reading', current: u + 1, total: job.units.length })
+              else if (progress.phase === 'importing') setPhase({ kind: 'importing', current: u + 1, total: job.units.length })
+            }
+            var answer = await uploadArchive(blob, job.workspaceId, uploadProgress)
+            var busyRetries = 0
+            while (!answer.ok && busyAnswer(answer) && !job.stopRequested && busyRetries < 4) {
+              busyRetries++
+              await wait(120 * busyRetries)
+              if (job.stopRequested) break
+              setPhase({ kind: 'uploading', fraction: 0, current: u + 1, total: job.units.length })
+              answer = await uploadArchive(blob, job.workspaceId, uploadProgress)
+            }
             if (!answer.ok) {
               failure = uploadError(answer)
               break
             }
-            aggregate.failed = aggregate.failed.concat(built.failed || [])
             var value = answer.outcome && answer.outcome.value ? answer.outcome.value : {}
-            if (Array.isArray(value.sessionIds)) aggregate.sessionIds = aggregate.sessionIds.concat(value.sessionIds)
-            if (Array.isArray(value.skipped)) aggregate.skipped = aggregate.skipped.concat(value.skipped)
-            else if (typeof value.skipped === 'number') aggregate.skipped = aggregate.skipped.concat(new Array(value.skipped).fill('skipped'))
-            if (Number.isFinite(value.omittedByLimit)) aggregate.omittedByLimit += value.omittedByLimit
-            completed++
+            if (Array.isArray(value.sessionIds)) job.aggregate.sessionIds = job.aggregate.sessionIds.concat(value.sessionIds)
+            if (Array.isArray(value.skipped)) job.aggregate.skipped = job.aggregate.skipped.concat(value.skipped)
+            else if (typeof value.skipped === 'number') job.aggregate.skipped = job.aggregate.skipped.concat(new Array(value.skipped).fill('skipped'))
+            if (Number.isFinite(value.omittedByLimit)) job.aggregate.omittedByLimit += value.omittedByLimit
+            job.nextUnit = u + 1
+            job.completedSessions += job.units[u].length
+            if (job.stopRequested) break
           } catch (buildError) {
             failure = t('error.prefix', { message: messageOf(buildError) })
             break
           }
         }
-        if (completed === 0) {
-          setPhase({ kind: 'idle' })
-          setError(failure || t('error.prefix', { message: 'no batch completed' }))
-          return
-        }
+        job.failure = failure
         if (failure) setError(failure)
         else setError(null)
-        setPhase({
-          kind: 'done',
-          result: {
-            sessionIds: aggregate.sessionIds,
-            skipped: aggregate.skipped,
-            omittedByLimit: aggregate.omittedByLimit,
-            failed: aggregate.failed,
-            batches: completed,
-            plannedBatches: planned.length,
-            workspace: activeWorkspace.title || activeWorkspace.path || '',
-            partial: failure !== null,
-          },
-        })
+        if (job.stopRequested) {
+          job.running = false
+          job.awaiting = true
+          setPhase({ kind: 'stopped', result: resultOf(job) })
+          if (job.stopMode) await settleStop(job)
+          return
+        }
+        if (job.completedSessions === 0) {
+          job.running = false
+          job.finished = true
+          setPhase({ kind: 'idle' })
+          setError(failure || t('error.prefix', { message: 'no session completed' }))
+          await refreshSessions()
+          return
+        }
+        await finishDone(job, { stopped: false })
+      }
+
+      async function finishPause(job) {
+        job.running = false
+        job.awaiting = false
+        job.settling = false
+        job.stopRequested = false
+        job.stopMode = null
+        setStopOpen(false)
+        if (job.nextUnit >= job.units.length) {
+          await finishDone(job, { stopped: true })
+          return
+        }
+        setPhase({ kind: 'paused', result: resultOf(job) })
+        await refreshSessions()
+      }
+
+      async function finishDone(job, extra) {
+        if (job.finished) return
+        job.finished = true
+        job.running = false
+        job.awaiting = false
+        job.settling = false
+        setStopOpen(false)
+        setPhase({ kind: 'done', result: resultOf(job, extra) })
         setSelected(new Set())
         setBulkAck(0)
-        if (props.refreshSessions) {
-          try { await props.refreshSessions() } catch (refreshError) { /* session refresh is best effort */ }
+        await refreshSessions()
+      }
+
+      async function settleStop(job) {
+        if (job.finished || job.settling) return
+        job.settling = true
+        if (job.stopMode === 'pause') {
+          await finishPause(job)
+          return
         }
+        if (job.stopMode === 'undo') {
+          await undoJob(job)
+          return
+        }
+        if (job.stopMode === 'keep') {
+          await finishDone(job, { stopped: true })
+          return
+        }
+        job.settling = false
+      }
+
+      async function undoJob(job) {
+        var ids = job.aggregate.sessionIds.slice()
+        setStopOpen(false)
+        if (ids.length === 0) {
+          await finishDone(job, { stopped: true, undoAttempted: true })
+          return
+        }
+        setPhase({ kind: 'undoing', count: ids.length })
+        var results = []
+        try {
+          results = await props.archiveSessions(ids)
+        } catch (archiveError) {
+          results = ids.map(function (id) { return { id: id, ok: false, message: messageOf(archiveError) } })
+        }
+        var archived = 0
+        var failures = []
+        for (var i = 0; i < ids.length; i++) {
+          var item = results && results[i]
+          if (item && item.ok) archived++
+          else failures.push({ id: ids[i], message: item && item.message ? item.message : t('result.undoFailedOne') })
+        }
+        await finishDone(job, { stopped: true, undone: archived, undoAttempted: true, archiveFailures: failures })
+      }
+
+      function requestStop() {
+        var job = jobRef.current
+        if (!job || job.finished || !job.running || job.stopRequested) return
+        job.stopRequested = true
+        job.stopMode = null
+        setStopOpen(true)
+      }
+
+      function chooseStop(mode) {
+        var job = jobRef.current
+        if (!job || job.finished) { setStopOpen(false); return }
+        if (mode !== 'pause' && mode !== 'keep' && mode !== 'undo') mode = 'pause'
+        if (mode === 'undo' && job.aggregate.sessionIds.length === 0) mode = 'keep'
+        job.stopMode = mode
+        setStopOpen(false)
+        if (job.awaiting) void settleStop(job)
+      }
+
+      function resumeJob() {
+        var job = jobRef.current
+        if (!job || job.finished) return
+        void runJob(job)
+      }
+
+      function closePaused() {
+        var job = jobRef.current
+        if (job) job.finished = true
+        void refreshSessions()
+        props.onClose()
+      }
+
+      function stopPendingText() {
+        var job = jobRef.current
+        if (!job || !job.stopMode) return null
+        if (job.stopMode === 'pause') return t('stop.pending.pause')
+        if (job.stopMode === 'undo') return t('stop.pending.undo')
+        return t('stop.pending.keep')
       }
 
       function onDrop(event) {
@@ -1262,10 +1517,12 @@ window.__ModuleLoader__.load({
       function progressText() {
         if (phase.kind === 'parsing') return t('progress.parsing')
         if (phase.kind === 'scanning') return t('progress.scanning', { done: String(phase.done), total: String(phase.total) })
-        if (phase.kind === 'building') return t('progress.building', { batch: String(phase.batch), batches: String(phase.batches) })
-        if (phase.kind === 'uploading') return t('progress.uploading', { batch: String(phase.batch), batches: String(phase.batches), percent: String(Math.round((phase.fraction || 0) * 100)) })
-        if (phase.kind === 'reading') return t('progress.reading')
-        if (phase.kind === 'importing') return t('progress.importing', { batch: String(phase.batch), batches: String(phase.batches), done: String(phase.done), total: String(phase.total) })
+        if (phase.kind === 'building') return t('progress.building', { current: String(phase.current), total: String(phase.total) })
+        if (phase.kind === 'uploading') return t('progress.uploading', { current: String(phase.current), total: String(phase.total), percent: String(Math.round((phase.fraction || 0) * 100)) })
+        if (phase.kind === 'reading') return t('progress.reading', { current: String(phase.current), total: String(phase.total) })
+        if (phase.kind === 'importing') return t('progress.importing', { current: String(phase.current), total: String(phase.total) })
+        if (phase.kind === 'stopped') return t('stop.stopping')
+        if (phase.kind === 'undoing') return t('undoing.text', { count: String(phase.count) })
         return t('dialog.import')
       }
 
@@ -1279,9 +1536,36 @@ window.__ModuleLoader__.load({
         })
         : null
 
+      if (phase.kind === 'paused') {
+        var paused = phase.result
+        return h(Modal, {
+          open: true,
+          onClose: closePaused,
+          closeLabel: t('dialog.close'),
+          title: t('paused.title'),
+          className: 'dsbi-modal',
+          contentClassName: 'dsbi-content',
+          footer: h(React.Fragment, null,
+            h(Button, { variant: 'outline', onClick: closePaused }, t('paused.close')),
+            h(Button, { variant: 'primary', onClick: resumeJob, disabled: paused.completed >= paused.planned }, t('dialog.resume')),
+          ),
+        }, h('div', { className: 'dsbi-result', role: 'status' },
+          h('div', null, t('paused.text', { done: String(paused.completed), total: String(paused.planned), count: String(paused.sessionIds.length) })),
+          paused.failed && paused.failed.length > 0 ? h('div', { className: 'dsbi-warn' }, t('result.failed', { count: String(paused.failed.length) })) : null,
+          error !== null ? h('div', { className: 'dsbi-error', role: 'alert' }, error) : null,
+          h('div', { className: 'dsbi-hint' }, t('paused.hint')),
+        ))
+      }
+
       if (phase.kind === 'done') {
         var result = phase.result
         var workspaceName = result.workspace || (activeWorkspace ? (activeWorkspace.title || activeWorkspace.path) : '')
+        var archiveFailures = result.archiveFailures || []
+        var summary = result.undoAttempted && result.undone > 0
+          ? t('result.undone', { count: String(result.undone) })
+          : result.stopped && result.sessionIds.length === 0
+            ? t('result.stoppedNone')
+            : t('result.ok', { count: String(result.sessionIds.length), workspace: workspaceName })
         return h(Modal, {
           open: true,
           onClose: props.onClose,
@@ -1291,12 +1575,18 @@ window.__ModuleLoader__.load({
           contentClassName: 'dsbi-content',
           footer: h(Button, { variant: 'primary', onClick: props.onClose }, t('dialog.done')),
         }, h('div', { className: 'dsbi-result', role: 'status' },
-          h('div', null, t('result.ok', { count: String(result.sessionIds.length), workspace: workspaceName })),
-          result.batches > 1 ? h('div', null, t('result.batches', { count: String(result.batches) })) : null,
+          h('div', null, summary),
+          result.stopped && !result.undoAttempted && result.sessionIds.length > 0 ? h('div', null, t('result.stopped')) : null,
+          result.undoAttempted && result.undone > 0 ? h('div', { className: 'dsbi-hint' }, t('result.undoHint')) : null,
+          result.completed > 1 ? h('div', null, t('result.processed', { count: String(result.completed) })) : null,
           result.skipped && result.skipped.length > 0 ? h('div', null, t('result.skipped', { count: String(result.skipped.length) })) : null,
           result.omittedByLimit > 0 ? h('div', null, t('result.omitted', { count: String(result.omittedByLimit) })) : null,
           result.failed && result.failed.length > 0 ? h('div', { className: 'dsbi-warn' }, t('result.failed', { count: String(result.failed.length) })) : null,
           result.partial ? h('div', { className: 'dsbi-warn' }, t('result.partial')) : null,
+          archiveFailures.length > 0 ? h('div', { className: 'dsbi-warn' }, t('result.undoFailures', {
+            count: String(archiveFailures.length),
+            message: archiveFailures.slice(0, 3).map(function (item) { return item.message }).join('; '),
+          })) : null,
           error !== null ? h('div', { className: 'dsbi-error', role: 'alert' }, error) : null,
         ))
       }
@@ -1327,6 +1617,7 @@ window.__ModuleLoader__.load({
       var rows = visible.slice(0, listLimit)
       var footer = h(React.Fragment, null,
         h(Button, { variant: 'outline', onClick: function () { if (!running) props.onClose() }, disabled: running }, t('dialog.cancel')),
+        importActive && !stopPending ? h(Button, { variant: 'outline', onClick: requestStop }, t('dialog.stop')) : null,
         h(Button, {
           variant: 'primary',
           disabled: running || chosen.length === 0 || !activeWorkspace,
@@ -1436,7 +1727,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'dsbi-section-label' }, t('dialog.workspace')),
           workspaceControl,
           workspacePicker,
-          chosen.length > 0 && batches.length > 1 ? h('div', { className: 'dsbi-batch-hint' }, t('dialog.batches', { count: String(chosen.length), batches: String(batches.length) })) : null,
+          chosen.length > 0 && units.length > 1 ? h('div', { className: 'dsbi-batch-hint' }, t('dialog.unitHint', { count: String(chosen.length) })) : null,
         ),
         entries.length > 0 ? h('div', { className: 'dsbi-filter' },
           h(Input, {
@@ -1526,6 +1817,7 @@ window.__ModuleLoader__.load({
         ) : null,
         error !== null ? h('div', { className: 'dsbi-error', role: 'alert' }, error) : null,
         running ? h('div', { className: 'dsbi-progress', role: 'status' }, progressText()) : null,
+        stopPending && stopMode ? h('div', { className: 'dsbi-stop-pending', role: 'status' }, stopPendingText()) : null,
         bulkPrompt ? h(Modal, {
           open: true,
           onClose: function () { setBulkPrompt(null) },
@@ -1538,6 +1830,45 @@ window.__ModuleLoader__.load({
             h(Button, { variant: 'primary', onClick: confirmBulk }, bulkPrompt.kind === 'select' ? t('dialog.confirmSelect') : t('dialog.confirmImport')),
           ),
         }, h('div', { className: 'dsbi-confirm-text' }, bulkPrompt.message)) : null,
+        stopOpen ? h(Modal, {
+          open: true,
+          onClose: function () { chooseStop('pause') },
+          closeLabel: t('dialog.close'),
+          title: t('stop.title'),
+          className: 'dsbi-confirm-modal',
+          contentClassName: 'dsbi-confirm-content',
+          footer: h(Button, { variant: 'outline', onClick: function () { chooseStop('pause') } }, t('stop.dismiss')),
+        }, h('div', null,
+          h('div', { className: 'dsbi-confirm-text' }, t('stop.description')),
+          h('div', { className: 'dsbi-stop-options' },
+            h('button', {
+              type: 'button',
+              className: 'dsbi-stop-option is-primary',
+              onClick: function () { chooseStop('pause') },
+            },
+              h('span', { className: 'dsbi-stop-option-title' }, t('stop.pause')),
+              h('span', { className: 'dsbi-stop-option-hint' }, t('stop.pauseHint')),
+            ),
+            h('button', {
+              type: 'button',
+              className: 'dsbi-stop-option',
+              onClick: function () { chooseStop('keep') },
+            },
+              h('span', { className: 'dsbi-stop-option-title' }, t('stop.keep')),
+              h('span', { className: 'dsbi-stop-option-hint' }, t('stop.keepHint')),
+            ),
+            h('button', {
+              type: 'button',
+              className: 'dsbi-stop-option is-danger',
+              disabled: !activeJob || activeJob.aggregate.sessionIds.length === 0,
+              onClick: function () { chooseStop('undo') },
+            },
+              h('span', { className: 'dsbi-stop-option-title' }, t('stop.undo')),
+              h('span', { className: 'dsbi-stop-option-hint' }, t('stop.undoHint', { count: String(activeJob ? activeJob.aggregate.sessionIds.length : 0) })),
+            ),
+          ),
+          h('div', { className: 'dsbi-stop-note' }, t('stop.dismissHint')),
+        )) : null,
       ))
     }
 
@@ -1556,6 +1887,24 @@ window.__ModuleLoader__.load({
                   if (ctx.logger) ctx.logger.warn('dsbridge-import: session refresh failed', error)
                 })
               },
+              archiveSessions: async function (sessionIds) {
+                if (!ctx.uiWorkspace || typeof ctx.uiWorkspace.archiveSession !== 'function') {
+                  return sessionIds.map(function (sessionId) {
+                    return { id: sessionId, ok: false, message: 'uiWorkspace.archiveSession is unavailable' }
+                  })
+                }
+                var results = []
+                for (var i = 0; i < sessionIds.length; i++) {
+                  var sessionId = sessionIds[i]
+                  try {
+                    await ctx.uiWorkspace.archiveSession(sessionId, { stopActivity: true })
+                    results.push({ id: sessionId, ok: true })
+                  } catch (error) {
+                    results.push({ id: sessionId, ok: false, message: error && error.message ? error.message : String(error) })
+                  }
+                }
+                return results
+              },
             }
           },
         }, Action)
@@ -1563,7 +1912,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale', 'sessions'],
+      inject: ['slots', 'locale', 'sessions', 'uiWorkspace'],
       apply: apply,
       __test: {
         openZip: openZip,
@@ -1574,7 +1923,7 @@ window.__ModuleLoader__.load({
         entriesFromAnyDoc: entriesFromAnyDoc,
         collectEntries: collectEntries,
         buildV3: buildV3,
-        planBatches: planBatches,
+        planUnits: planUnits,
       },
     }
   },
