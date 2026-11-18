@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <code>Browser Extension 0.3.1</code> · <code>DSH Plugin 0.2.2</code> · <code>MIT</code>
+  <code>Browser Extension 0.3.1</code> · <code>DSH Plugin 0.2.2</code> · <code>Apache-2.0</code>
 </p>
 
 > 本项目不是 DeepSeek 官方产品。它使用 chat.deepseek.com 的 Web 内部接口和 DSH 的实验性导入器，接口变化可能导致功能失效。
@@ -193,12 +193,14 @@ ds-bridge/
 │  ├─ content.js / background.js
 │  ├─ popup.* / workbench.*
 │  ├─ shared/                 api / markdown / json / zip / session-groups
+│  ├─ LICENSE / NOTICE
 │  └─ icons/
 ├─ dsh-plugin/                DSH 客户端插件
 │  ├─ package.json
 │  ├─ cordis.patch.yml
 │  ├─ lib/index.js             Host 空实现
 │  ├─ lib/client.js            UI、zip 解析、v3 构建、分批上传
+│  ├─ LICENSE / NOTICE
 │  └─ locale/
 ├─ docs/                      架构、接口、格式、安全
 ├─ tests/                     Node 单元测试
@@ -206,7 +208,8 @@ ds-bridge/
 ├─ README.md
 ├─ SECURITY.md
 ├─ CONTRIBUTING.md
-└─ LICENSE
+├─ LICENSE
+└─ NOTICE
 ```
 
 ## 文档
@@ -236,4 +239,6 @@ It is unofficial and not affiliated with DeepSeek. The Web API, official export 
 
 ## License
 
-MIT © 2026 DsBridge contributors. See [LICENSE](LICENSE).
+本项目以 [Apache License 2.0](LICENSE) 发布，按“现状”提供，不附带任何明示或默示担保。完整条款与责任限制见 [LICENSE](LICENSE)，署名信息见 [NOTICE](NOTICE)。
+
+Licensed under the [Apache License 2.0](LICENSE), provided “AS IS”, without warranties or conditions of any kind. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

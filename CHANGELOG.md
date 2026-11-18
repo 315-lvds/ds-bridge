@@ -2,6 +2,10 @@
 
 版本号分别对应两个独立组件：浏览器扩展从 `0.3.0` 开始（当前 `0.3.1`），DSH 插件从 `0.2.2` 开始。
 
+## License — 2026-11-18
+
+- 项目许可证从 MIT 切换为 Apache License 2.0；根目录、扩展和 DSH 插件目录均补充 `LICENSE` 与 `NOTICE`，贡献条款同步更新。
+
 ## Docs — 2026-11-18
 
 - README 标题下加入官方 `powered by dsh` 徽章；在英文简介前补充 DeepSeek Harness + DeepSeek V4 Flash 的 AI 辅助开发说明。

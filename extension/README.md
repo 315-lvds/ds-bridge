@@ -49,3 +49,7 @@
 ## 开发说明
 
 本扩展在 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 中开发，并使用 **DeepSeek V4 Flash** 辅助编写代码、测试与文档；需求、设计、安全边界、验收与发布由维护者负责。二者是开发工具，不是本扩展的运行时依赖。
+
+## 许可证
+
+本项目以 [Apache License 2.0](LICENSE) 发布，按“现状”提供，不附带任何明示或默示担保。见 [LICENSE](LICENSE) 与 [NOTICE](NOTICE)。

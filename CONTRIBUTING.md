@@ -31,4 +31,4 @@
 
 ## License
 
-提交贡献即表示同意以 MIT License 发布。
+提交贡献即表示你同意以 [Apache License 2.0](LICENSE) 授权该贡献，并同意项目按该许可证分发；请勿提交你无权授权的代码。

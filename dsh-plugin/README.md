@@ -5,7 +5,7 @@
 - 当前版本：**0.2.2**
 - 目标适配：**DSH 0.2.2-rc.5**
 - 运行时依赖：DSH 内置实验性插件「DeepSeek 会话导入」
-- 许可证：MIT
+- 许可证：Apache-2.0（[LICENSE](LICENSE) / [NOTICE](NOTICE)）
 
 ## 这个插件做什么
 
